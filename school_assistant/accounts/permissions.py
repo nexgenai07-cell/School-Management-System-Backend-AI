@@ -36,6 +36,42 @@ class IsAdmin(BasePermission):
         )
 
 
+def is_admin_user(request) -> bool:
+    """Centralized helper for Admin override."""
+    return bool(
+        request.user
+        and request.user.is_authenticated
+        and getattr(getattr(request.user, "role", None), "role_name", None) == "Admin"
+    )
+
+
+class IsAdminOrTeacher(BasePermission):
+    def has_permission(self, request, view):
+        return is_admin_user(request) or IsTeacher().has_permission(request, view)
+
+
+class IsAdminOrStudent(BasePermission):
+    def has_permission(self, request, view):
+        return is_admin_user(request) or IsStudent().has_permission(request, view)
+
+
+
+class IsAdminOrParent(BasePermission):
+    def has_permission(self, request, view):
+        return is_admin_user(request) or IsParent().has_permission(request, view)
+
+
+class HasModulePermissionAllowAdmin(BasePermission):
+    """Admin bypasses RolePermission checks; everyone else follows module matrix."""
+
+    def has_permission(self, request, view):
+        if is_admin_user(request):
+            return True
+        # Late reference to avoid NameError since HasModulePermission is declared later.
+        return HasModulePermission().has_permission(request, view)
+
+
+
 class IsTeacher(BasePermission):
     """Allows access only to users with the Teacher role."""
 

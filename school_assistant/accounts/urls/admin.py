@@ -11,6 +11,7 @@ every role (see the note in serializers/admin.py for why).
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+
 from accounts.views.admin import (
     RegisterView, ProfileView, ChangePasswordView,
     RoleListView, PendingApprovalListView, ApprovalActionView,
@@ -21,6 +22,7 @@ urlpatterns = [
     # ── Shared auth (every role) ────────────────────────────────────────
     path("auth/register", RegisterView.as_view(), name="auth-register"),
     path("auth/login", TokenObtainPairView.as_view(), name="auth-login"),
+
     path("auth/login/refresh", TokenRefreshView.as_view(), name="auth-login-refresh"),
     path("auth/profile", ProfileView.as_view(), name="auth-profile"),
     path("auth/change-password", ChangePasswordView.as_view(), name="auth-change-password"),
