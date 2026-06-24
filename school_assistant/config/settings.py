@@ -104,7 +104,10 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=2),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    # Enforce Admin approval workflow for login/token issuance.
+    "TOKEN_OBTAIN_PAIR_SERIALIZER": "accounts.authentication.StatusAwareTokenObtainPairSerializer",
 }
+
 
 # ── SWAGGER (drf-yasg) ──────────────────────────────────────────────────────
 # Once running, visit /swagger/ for an interactive UI to test every
