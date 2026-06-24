@@ -14,6 +14,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from accounts.views.admin import (
     RegisterView, ProfileView, ChangePasswordView,
+    PasswordResetRequestView, PasswordResetConfirmView,
     RoleListView, PendingApprovalListView, ApprovalActionView,
     UserViewSet, StudentProfileViewSet, TeacherProfileViewSet,
 )
@@ -26,6 +27,8 @@ urlpatterns = [
     path("auth/login/refresh", TokenRefreshView.as_view(), name="auth-login-refresh"),
     path("auth/profile", ProfileView.as_view(), name="auth-profile"),
     path("auth/change-password", ChangePasswordView.as_view(), name="auth-change-password"),
+    path("auth/password-reset", PasswordResetRequestView.as_view(), name="auth-password-reset"),
+    path("auth/password-reset/confirm", PasswordResetConfirmView.as_view(), name="auth-password-reset-confirm"),
 
     # ── Admin-only ───────────────────────────────────────────────────────
     path("admin/roles", RoleListView.as_view(), name="admin-roles"),

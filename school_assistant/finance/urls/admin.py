@@ -3,6 +3,7 @@ from django.urls import path
 from finance.views.admin import (
     FeeStructureViewSet, FeeViewSet, GenerateMonthlyChallansView,
     PaymentCreateView, PaymentListView, ExpenseViewSet, FeeHistoryListView,
+    CreateStripePaymentIntentView, StripeWebhookView,
 )
 
 urlpatterns = [
@@ -26,4 +27,8 @@ urlpatterns = [
     )),
 
     path("finance/fee-history/<int:fee_id>", FeeHistoryListView.as_view()),
+
+    # Stripe
+    path("finance/stripe/create-payment-intent", CreateStripePaymentIntentView.as_view()),
+    path("finance/stripe/webhook", StripeWebhookView.as_view()),
 ]

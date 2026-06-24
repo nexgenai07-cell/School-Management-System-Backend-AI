@@ -12,7 +12,7 @@ accounts.TeacherProfile back -- see their own models.py files.)
 
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
-
+from django.core.exceptions import ValidationError
 
 class Role(models.Model):
     """
@@ -114,7 +114,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ["full_name", "role"]
 
     objects = UserManager()
-
+    def save(self, *args, **kwargs):
+        """
+        Enforces "Admin is a single pre-set account, no signup" (spec).
+        """
+        if self.role_id and self.role.role_name == "Admin":
+            already_exists = User.objects.filter(role__role_name="Admin").exclude(pk=self.pk).exists()
+            if already_exists:
+                raise ValidationError("Only one Admin account is allowed in this system.")
+        super().save(*args, **kwargs)
     def __str__(self):
         return f"{self.full_name} ({self.role.role_name})"
 

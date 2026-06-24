@@ -37,5 +37,5 @@ urlpatterns = [
     path("api/", include("finance.urls")),
     path("api/", include("communication.urls")),
     path("api/", include("administration.urls")),
-    # path("api/", include("chat.urls")),  # TODO: uncomment once chat/urls.py + consumers.py are built
+    path("api/", include("chat.urls")), 
 ]
