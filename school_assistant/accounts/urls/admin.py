@@ -23,9 +23,9 @@ from accounts.views.admin import (
 urlpatterns = [
     # ── Shared auth (every role) ────────────────────────────────────────
     path("auth/register", RegisterView.as_view(), name="auth-register"),
-    path("auth/login", TokenObtainPairView.as_view(), name="auth-login"),
+    path("auth/login/", TokenObtainPairView.as_view(), name="auth-login"),
 
-    path("auth/login/refresh", TokenRefreshView.as_view(), name="auth-login-refresh"),
+    path("auth/login/refresh/", TokenRefreshView.as_view(), name="auth-login-refresh"),
     path("auth/profile", ProfileView.as_view(), name="auth-profile"),
     path("auth/change-password", ChangePasswordView.as_view(), name="auth-change-password"),
     path("auth/password-reset", PasswordResetRequestView.as_view(), name="auth-password-reset"),
