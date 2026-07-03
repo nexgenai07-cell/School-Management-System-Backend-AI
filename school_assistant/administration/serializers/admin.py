@@ -37,7 +37,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
 class InventorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Inventory
-        fields = ["id", "item_name", "total_quantity", "assigned_to_room", "last_updated"]
+        fields = ["id", "item_name", "category", "total_quantity", "assigned_to_room", "last_updated"]
 
     # VALIDATION: Quantity negative na ho
     def validate_total_quantity(self, value):

@@ -51,6 +51,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+     "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -80,17 +81,41 @@ ASGI_APPLICATION = "config.asgi.application"  # required because Channels handle
 AUTH_USER_MODEL = "accounts.User"
 
 # ── DATABASE (PostgreSQL) ───────────────────────────────────────────────────
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("DB_NAME"),
-        "USER": config("DB_USER"),
-        "PASSWORD": config("DB_PASSWORD"),
-        "HOST": config("DB_HOST", default="localhost"),
-        "PORT": config("DB_PORT", default="5432"),
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": config("DB_NAME"),
+#         "USER": config("DB_USER"),
+#         "PASSWORD": config("DB_PASSWORD"),
+#         "HOST": config("DB_HOST", default="localhost"),
+#         "PORT": config("DB_PORT", default="5432"),
+#     }
+# }
+# ── DATABASE (Neon Postgres) ──────────────────────────────────
+import urllib.parse
+DATABASE_URL = config("DATABASE_URL", default="")
+if DATABASE_URL:
+    _db = urllib.parse.urlparse(DATABASE_URL)
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _db.path.lstrip("/"),
+            "USER": _db.username,
+            "PASSWORD": _db.password,
+            "HOST": _db.hostname,
+            "PORT": _db.port or 5432,
+            "OPTIONS": {"sslmode": "require"},
+        }
     }
-}
-
+    print(f" Database connected: {_db.hostname}")
+else:
+    print(" No DATABASE_URL found, using SQLite fallback")
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 # ── REST FRAMEWORK + JWT AUTHENTICATION ─────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -157,7 +182,10 @@ USE_I18N = True
 USE_TZ = True
 
 # ── STATIC FILES & DEFAULTS ───────────────────────────────────────────────────
-STATIC_URL = "static/"
+# ── STATIC FILES & DEFAULTS ───────────────────────────────────────────────────
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # namrah_section
 
