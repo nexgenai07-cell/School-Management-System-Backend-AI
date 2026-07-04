@@ -20,6 +20,8 @@ from rest_framework import generics, status, viewsets
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 from django.contrib.auth.password_validation import validate_password  # <-- IMPORTANT: yeh import missing tha, add karein
 
 from accounts.models import User, Role, StudentProfile, TeacherProfile, PasswordResetToken
@@ -178,176 +180,29 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserAdminSerializer
     permission_classes = [IsAdmin]
 
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['role', 'status', 'is_active', 'is_staff']
+    search_fields = ['full_name', 'email']
+    ordering_fields = ['created_at', 'full_name', 'email']
+    ordering = ['-created_at']
 
 class StudentProfileViewSet(viewsets.ModelViewSet):
     queryset = StudentProfile.objects.select_related("user").all()
     serializer_class = StudentProfileAdminSerializer
     permission_classes = [IsAdmin]
-
+   
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['class_section', 'scholarship_percentage']
+    search_fields = ['user__full_name', 'roll_number', 'guardian_name']
+    ordering_fields = ['user__full_name', 'roll_number']
+    ordering = ['user__full_name']
 
 class TeacherProfileViewSet(viewsets.ModelViewSet):
     queryset = TeacherProfile.objects.select_related("user").all()
     serializer_class = TeacherProfileAdminSerializer
     permission_classes = [IsAdmin]
-    
-
-# ── PASSWORD RESET VIEWS (UPDATED WITH EMAILJS) ──────────────────────────
-
-import random
-import requests
-import json
-from django.conf import settings
-from django.utils import timezone
-from datetime import timedelta
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from django.contrib.auth.password_validation import validate_password
-from accounts.models import User, PasswordResetToken
-
-
-class PasswordResetRequestView(APIView):
-    """POST /api/auth/password-reset -- Sends OTP via EmailJS"""
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        email = request.data.get("email")
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({"detail": "If this email exists, an OTP has been sent."}, status=200)
-
-        # Delete old tokens
-        PasswordResetToken.objects.filter(user=user).delete()
-
-        # Generate OTP
-        token = str(random.randint(100000, 999999))
-        expires_at = timezone.now() + timedelta(minutes=15)
-        PasswordResetToken.objects.create(user=user, token=token, expires_at=expires_at)
-
-        # ─── SEND EMAIL VIA EMAILJS (REAL API) ───
-               # ─── SEND EMAIL VIA EMAILJS (REAL API) ───
-        try:
-            payload = {
-                "service_id": settings.EMAILJS_SERVICE_ID,
-                "template_id": settings.EMAILJS_TEMPLATE_ID,
-                "user_id": settings.EMAILJS_PUBLIC_KEY,  # Public Key
-                "accessToken": settings.EMAILJS_PRIVATE_KEY,  # Optional
-                "template_params": {
-                    "to_email": user.email,      # Template mein {{to_email}}
-                    "to_name": user.full_name,   # Template mein {{to_name}}
-                    "otp_code": token,           # Template mein {{otp_code}}
-                    "expiry_minutes": "15",      # Template mein {{expiry_minutes}}
-                }
-            }
-
-            headers = {"Content-Type": "application/json"}
-
-            response = requests.post(
-                "https://api.emailjs.com/api/v1.0/email/send",
-                json=payload,
-                headers=headers,
-                timeout=10
-            )
-            headers = {"Content-Type": "application/json"}
-
-            response = requests.post(
-                "https://api.emailjs.com/api/v1.0/email/send",
-                json=payload,
-                headers=headers,
-                timeout=10
-            )
-
-            headers = {"Content-Type": "application/json"}
-
-            response = requests.post(
-                "https://api.emailjs.com/api/v1.0/email/send",
-                json=payload,
-                headers=headers,
-                timeout=10
-            )
-
-            # ✅ LOG THE EXACT RESPONSE (For Debugging in Terminal)
-            if response.status_code != 200:
-                error_detail = response.text
-                print(f"❌ EmailJS Error ({response.status_code}): {error_detail}")
-                # If response is JSON, parse it for better logging
-                try:
-                    error_json = response.json()
-                    print(f"EmailJS Error Details: {json.dumps(error_json, indent=2)}")
-                except:
-                    pass
-                return Response({"detail": "Failed to send OTP. Please check your email configuration."}, status=500)
-
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Network/Request Error: {str(e)}")
-            return Response({"detail": "Email service temporarily unavailable. Please try again later."}, status=500)
-
-        return Response({"detail": "If this email exists, an OTP has been sent."}, status=200)
-
-
-class PasswordResetConfirmView(APIView):
-    """POST /api/auth/password-reset/confirm -- Verify OTP and set new password"""
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        email = request.data.get("email")
-        token = request.data.get("token")
-        new_password = request.data.get("new_password")
-
-        if not all([email, token, new_password]):
-            return Response({"detail": "email, token, and new_password are required."}, status=400)
-
-        try:
-            user = User.objects.get(email=email)
-            reset_obj = PasswordResetToken.objects.get(user=user, token=token, is_used=False)
-        except (User.DoesNotExist, PasswordResetToken.DoesNotExist):
-            return Response({"detail": "Invalid or expired token."}, status=400)
-
-        if reset_obj.expires_at < timezone.now():
-            return Response({"detail": "Token has expired."}, status=400)
-
-        try:
-            validate_password(new_password)
-        except Exception as e:
-            return Response({"detail": str(e)}, status=400)
-
-        user.set_password(new_password)
-        user.save()
-        reset_obj.is_used = True
-        reset_obj.save()
-
-        return Response({"detail": "Password reset successful."}, status=200)
-class PasswordResetConfirmView(APIView):
-    """POST /api/auth/password-reset/confirm -- Verify OTP and set new password"""
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        email = request.data.get("email")
-        token = request.data.get("token")
-        new_password = request.data.get("new_password")
-
-        if not all([email, token, new_password]):
-            return Response({"detail": "email, token, and new_password are required."}, status=400)
-
-        try:
-            user = User.objects.get(email=email)
-            reset_obj = PasswordResetToken.objects.get(user=user, token=token, is_used=False)
-        except (User.DoesNotExist, PasswordResetToken.DoesNotExist):
-            return Response({"detail": "Invalid or expired token."}, status=400)
-
-        if reset_obj.expires_at < timezone.now():
-            return Response({"detail": "Token has expired."}, status=400)
-
-        # Validate new password
-        try:
-            validate_password(new_password)
-        except Exception as e:
-            return Response({"detail": str(e)}, status=400)
-
-        user.set_password(new_password)
-        user.save()
-        reset_obj.is_used = True
-        reset_obj.save()
-
-        return Response({"detail": "Password reset successful."}, status=200)
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['qualification', 'specialization']
+    search_fields = ['user__full_name', 'cnic']
+    ordering_fields = ['user__full_name', 'joining_date']
+    ordering = ['user__full_name']

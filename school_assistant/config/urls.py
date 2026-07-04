@@ -11,7 +11,8 @@ from django.urls import path, include
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-
+from django.views.decorators.csrf import csrf_exempt
+from finance.views.admin import StripeWebhookView
 schema_view = get_schema_view(
     openapi.Info(
         title="School ERP API",
@@ -38,5 +39,5 @@ urlpatterns = [
     path("api/", include("communication.urls")),
     path("api/", include("administration.urls")),
     path("api/", include("chat.urls")),  
-    # path("api/webhooks/stripe", include("finance.urls.webhooks")),
+    
 ]

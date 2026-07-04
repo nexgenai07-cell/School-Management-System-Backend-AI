@@ -22,7 +22,8 @@ class FeeStructure(models.Model):
     monthly_fee = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    def __str__(self):
+        return f"{self.class_section} - Rs.{self.monthly_fee}"
 
 class Fee(models.Model):
     """A single month's fee challan/invoice for one student."""
@@ -49,7 +50,8 @@ class Fee(models.Model):
     paid_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="Unpaid", db_index=True)
     generated_at = models.DateTimeField(auto_now_add=True)
-
+    def __str__(self):
+        return f"{self.student.user.full_name} - {self.month} ({self.status})"
     class Meta:
         unique_together = ("student", "month")  # one challan per student per month
 
@@ -103,7 +105,8 @@ class Expense(models.Model):
     )
     payment_method = models.CharField(max_length=30, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    def __str__(self):
+        return f"{self.category} - {self.amount} ({self.expense_date})"
 
 class FeeHistory(models.Model):
     """Audit trail: logs every status/amount change made to a Fee row."""
@@ -118,3 +121,5 @@ class FeeHistory(models.Model):
     )
     reason = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"Fee {self.fee.id} - {self.old_status} → {self.new_status} ({self.created_at})"

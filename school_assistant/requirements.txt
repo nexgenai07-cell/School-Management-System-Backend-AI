@@ -1,4 +1,4 @@
-setuptools<81
+setuptools<82
 Django==5.0.6
 djangorestframework==3.15.1
 djangorestframework-simplejwt==5.3.1
@@ -8,11 +8,12 @@ django-cors-headers==4.3.1
 channels==4.1.0
 channels-redis==4.2.0
 celery==5.3.6
-whitenoise>=6.0.0
 redis==5.0.4
 python-decouple==3.8
 stripe==15.2.1
-
+whitenoise==6.7.0
+django-filter==24.3
+faker==30.8.2
 # Add ONE of these once the AI chatbot's LLM integration is actually built:
 # openai==1.30.0
 # google-generativeai==0.5.4

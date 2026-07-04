@@ -7,7 +7,8 @@ from django.db.models import Count, Q
 from rest_framework import generics, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 from attendance.models import Attendance, BehaviorLog
 from accounts.permissions import IsAdmin
 from attendance.serializers.admin import AttendanceRecordSerializer, BehaviorLogSerializer
@@ -50,3 +51,8 @@ class BehaviorLogViewSet(viewsets.ReadOnlyModelViewSet):
         if severity:
             qs = qs.filter(severity=severity)
         return qs
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['severity', 'student']
+    search_fields = ['description', 'student__user__full_name']
+    ordering_fields = ['date', 'severity', 'created_at']
+    ordering = ['-date']

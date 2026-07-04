@@ -47,7 +47,8 @@ class ChatSession(models.Model):
         "accounts.StudentProfile", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-
+    def __str__(self):
+        return f"{self.user.email} - {self.bot_type} ({self.created_at})"
 
 class ChatMessage(models.Model):
     ROLE_CHOICES = (("user", "user"), ("assistant", "assistant"))
@@ -56,6 +57,7 @@ class ChatMessage(models.Model):
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
-
+    def __str__(self):
+        return f"{self.session.user.email} - {self.role} ({self.created_at})"
     class Meta:
         ordering = ["created_at"]

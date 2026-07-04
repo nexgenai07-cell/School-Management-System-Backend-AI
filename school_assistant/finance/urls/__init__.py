@@ -6,4 +6,5 @@ urlpatterns = [
     path("", include("finance.urls.student")),
     path("", include("finance.urls.teacher")),
     path("", include("finance.urls.parent")),
+    path("", include("finance.urls.webhooks")), 
 ]

@@ -14,9 +14,11 @@ from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import viewsets, generics
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 
 from accounts.models import StudentProfile
 from accounts.permissions import IsAdmin
@@ -61,6 +63,12 @@ class FeeStructureViewSet(viewsets.ModelViewSet):
     serializer_class = FeeStructureSerializer
     permission_classes = [IsAdmin]
 
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['class_section']
+    search_fields = ['class_section__class_name', 'class_section__section']
+    ordering_fields = ['monthly_fee', 'created_at']
+    ordering = ['-created_at']
+
 
 class FeeViewSet(viewsets.ModelViewSet):
     """
@@ -90,7 +98,11 @@ class FeeViewSet(viewsets.ModelViewSet):
                 changed_by_admin=self.request.user, reason="Challan manually corrected by Admin.",
             )
 
-
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'student', 'month']
+    search_fields = ['student__user__full_name', 'student__user__email']
+    ordering_fields = ['amount', 'month', 'status', 'created_at']
+    ordering = ['-created_at']
 class GenerateMonthlyChallansView(APIView):
     """
     POST /api/finance/generate-monthly-challans
@@ -161,7 +173,11 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
     permission_classes = [IsAdmin]
-
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['category', 'expense_date']
+    search_fields = ['description']
+    ordering_fields = ['amount', 'expense_date', 'created_at']
+    ordering = ['-expense_date']
     def perform_create(self, serializer):
         serializer.save(paid_by_admin=self.request.user)
 
@@ -179,33 +195,29 @@ class FeeHistoryListView(generics.ListAPIView):
 
 class CreateStripePaymentIntentView(APIView):
     """
-    POST /api/finance/stripe/create-payment-intent
-    Body: {"fee_id": 1}
-
-    Creates a Stripe PaymentIntent for the remaining balance on a Fee and
-    returns its client_secret. The frontend uses Stripe.js/Stripe Elements
-    with that client_secret to actually collect the card and confirm
-    payment -- this endpoint never touches card details directly (PCI
-    compliance: card data should never pass through our own server).
-
-    IMPORTANT: this does NOT mark anything as paid. Only a verified
-    webhook event from Stripe (below) ever creates a Payment row -- never
-    trust a "payment succeeded" claim coming from the frontend alone,
-    since that could be spoofed by a malicious client.
+    ... (docstring same rehne do) ...
     """
-    permission_classes = [IsAdmin]  # Admin generates the payment link for now; Dev B can reuse this for a Parent-facing "pay now" button later
+    permission_classes = [IsAuthenticated]   # PEHLE: IsAdmin tha
 
     def post(self, request):
         fee = get_object_or_404(Fee, id=request.data.get("fee_id"))
+
+        # YE NAYA BLOCK ADD KARNA HAI (authorization check):
+        user = request.user
+        role = user.role.role_name
+        if role == "Student" and fee.student.user_id != user.id:
+            return Response({"detail": "Unauthorized"}, status=403)
+        if role == "Parent" and not fee.student.parents.filter(user=user).exists():
+            return Response({"detail": "Unauthorized"}, status=403)
+        if role not in ("Admin", "Student", "Parent"):
+            return Response({"detail": "Unauthorized"}, status=403)
+
         remaining = fee.amount - fee.amount_paid
-
-        if remaining <= 0:
-            return Response({"detail": "This fee is already fully paid."}, status=400)
-
+        
         try:
             intent = stripe.PaymentIntent.create(
                 amount=int(remaining * 100),  # Stripe expects the smallest currency unit (e.g. paisa)
-                currency="pkr",
+                currency="usd",
                 metadata={"fee_id": str(fee.id), "student_id": str(fee.student_id)},
             )
         except stripe.error.StripeError as exc:
@@ -246,7 +258,11 @@ class StripeWebhookView(APIView):
             if Payment.objects.filter(stripe_payment_intent_id=intent["id"]).exists():
                 return Response(status=200)
 
-            fee_id = intent["metadata"]["fee_id"]  # StripeObject doesn't support .get() in this SDK version -- bracket access only
+            try:
+               fee_id = intent["metadata"]["fee_id"]
+            except KeyError:
+                    logger.warning("payment_intent.succeeded received without fee_id in metadata: %s", intent["id"])
+                    return Response(status=200)
             fee = get_object_or_404(Fee, id=fee_id)
             amount_paid = Decimal(intent["amount_received"]) / Decimal(100)
 
@@ -257,3 +273,4 @@ class StripeWebhookView(APIView):
             sync_fee_after_payment(fee, payment, changed_by_admin=None, reason="Paid online via Stripe.")
 
         return Response(status=200)
+    

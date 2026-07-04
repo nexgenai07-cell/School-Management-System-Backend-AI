@@ -5,17 +5,13 @@ ADMINISTRATION -- ADMIN-ROLE VIEWS
 
 from rest_framework import viewsets, generics
 from rest_framework.response import Response
-from django.db.models import Count, Sum, Q
-from django.db.models.functions import TruncMonth
-from datetime import datetime, timedelta
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from django.shortcuts import get_object_or_404
-from accounts.models import User, StudentProfile, TeacherProfile
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
+
+from accounts.models import StudentProfile
 from accounts.permissions import IsAdmin
 from administration.models import Complaint, Inventory, SchoolEvent, EventParticipation, Certificate
-from attendance.models import Attendance
-from finance.models import Fee
 from administration.serializers.admin import (
     ComplaintSerializer, InventorySerializer, SchoolEventSerializer,
     EventParticipationSerializer, CertificateSerializer, CertificateGenerateSerializer,
@@ -39,6 +35,11 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         if status_filter:
             qs = qs.filter(status=status_filter)
         return qs
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'complaint_type']
+    search_fields = ['description', 'admin_remarks', 'reporter__full_name']
+    ordering_fields = ['created_at', 'status']
+    ordering = ['-created_at']
 
 
 class InventoryViewSet(viewsets.ModelViewSet):
@@ -52,7 +53,11 @@ class InventoryViewSet(viewsets.ModelViewSet):
         if room:
             qs = qs.filter(assigned_to_room=room)
         return qs
-
+    ilter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['assigned_to_room']
+    search_fields = ['item_name']
+    ordering_fields = ['item_name', 'total_quantity', 'last_updated']
+    ordering = ['item_name']
 
 class InventorySummaryView(APIView):
     """GET /api/admin/inventory/summary"""
@@ -78,13 +83,24 @@ class SchoolEventViewSet(viewsets.ModelViewSet):
         # parents" (spec, Page 11) -- TODO: dispatch Notification rows
         # here once the notification-dispatch helper is built.
         serializer.save(created_by_admin=self.request.user)
-
-
+    
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['event_date', 'venue']
+    search_fields = ['event_name', 'venue']
+    ordering_fields = ['event_date', 'created_at']
+    ordering = ['-event_date']
+    
 class EventParticipationViewSet(viewsets.ModelViewSet):
     """Register participants per event, assign position/certificate."""
     queryset = EventParticipation.objects.select_related("student__user", "event").all()
     serializer_class = EventParticipationSerializer
     permission_classes = [IsAdmin]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['event', 'student', 'role', 'position']
+    search_fields = ['student__user__full_name', 'event__event_name']
+    ordering_fields = ['created_at', 'event__event_date']
+    ordering = ['-created_at']
 
 
 class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
@@ -92,7 +108,11 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Certificate.objects.select_related("student__user").all().order_by("-created_at")
     serializer_class = CertificateSerializer
     permission_classes = [IsAdmin]
-
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['cert_type', 'student']
+    search_fields = ['student__user__full_name', 'generated_text']
+    ordering_fields = ['created_at', 'cert_type']
+    ordering = ['-created_at']
 
 class CertificateGenerateView(APIView):
     """
@@ -119,11 +139,7 @@ class CertificateGenerateView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        student = get_object_or_404(
-            StudentProfile.objects.select_related("user"),
-            id=data["student_id"],
-        )
-
+        student = StudentProfile.objects.select_related("user").get(id=data["student_id"])
         text = self.TEMPLATES[data["cert_type"]].format(
             name=student.user.full_name, roll=student.roll_number or "N/A"
         )
@@ -147,82 +163,6 @@ class CertificateDownloadView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request, id):
-        certificate = get_object_or_404(
-            Certificate.objects.select_related("student__user"),
-            id=id,
-        )
+        certificate = Certificate.objects.select_related("student__user").get(id=id)
         return Response(CertificateSerializer(certificate).data)
-
-
-class AdminStatsView(APIView):
-    """
-    GET /api/admin/stats
-    Admin dashboard ke liye saare statistics.
-    """
-    permission_classes = [IsAuthenticated, IsAdmin]
-
-    def get(self, request):
-        # 1. Basic Counts
-        total_students = StudentProfile.objects.count()
-        total_teachers = TeacherProfile.objects.count()
-        total_parents = User.objects.filter(role__role_name="Parent", is_active=True).count()
-        pending_approvals = User.objects.filter(status="Pending").count()
-        open_complaints = Complaint.objects.filter(status="Open").count()
-
-        # 2. Average Attendance (Current Month)
-        today = datetime.now().date()
-        first_day = today.replace(day=1)
-        attendance_qs = Attendance.objects.filter(date__gte=first_day, date__lte=today)
-        total_attendance = attendance_qs.count()
-        present_count = attendance_qs.filter(status="Present").count()
-        avg_attendance = round((present_count / total_attendance * 100)) if total_attendance > 0 else 0
-
-        # 3. Monthly Revenue (Current Month)
-        monthly_fees = Fee.objects.filter(
-            month__year=today.year,
-            month__month=today.month,
-            status="Paid"
-        )
-        monthly_revenue = monthly_fees.aggregate(total=Sum('amount_paid'))['total'] or 0
-
-        # 4. Fee Collection Chart (Last 6 Months)
-        fee_chart = []
-        for i in range(6):
-            month_date = today.replace(day=1) - timedelta(days=30*i)
-            collected = Fee.objects.filter(
-                month__year=month_date.year,
-                month__month=month_date.month,
-                status="Paid"
-            ).aggregate(total=Sum('amount_paid'))['total'] or 0
-            fee_chart.append({
-                "month": month_date.strftime("%b"),
-                "collected": collected
-            })
-        fee_chart.reverse()
-
-        # 5. Attendance Trend (Last 7 Days)
-        attendance_trend = []
-        for i in range(7):
-            day = today - timedelta(days=i)
-            day_qs = Attendance.objects.filter(date=day)
-            total = day_qs.count()
-            present = day_qs.filter(status="Present").count()
-            percentage = round((present / total * 100)) if total > 0 else 0
-            attendance_trend.append({
-                "day": day.strftime("%a"),
-                "percentage": percentage
-            })
-        attendance_trend.reverse()
-
-        # 6. Response Return
-        return Response({
-            "total_students": total_students,
-            "total_teachers": total_teachers,
-            "total_parents": total_parents,
-            "pending_approvals": pending_approvals,
-            "monthly_revenue": monthly_revenue,
-            "avg_attendance": avg_attendance,
-            "open_complaints": open_complaints,
-            "fee_collection_chart": fee_chart,
-            "attendance_trend": attendance_trend,
-        })
+    

@@ -14,15 +14,10 @@ from django.db import models
 
 
 class ClassSection(models.Model):
+    """A single class + section combination, e.g. '10-A'."""
+
     class_name = models.CharField(max_length=20)
     section = models.CharField(max_length=5)
-    default_room = models.ForeignKey(
-        "Room", 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
-        related_name="default_classes"
-    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -77,6 +72,8 @@ class Timetable(models.Model):
     day = models.CharField(max_length=3, choices=DAY_CHOICES)
     start_time = models.TimeField()
     end_time = models.TimeField()
+    def __str__(self):
+        return f"{self.class_section} - {self.subject.subject_name} ({self.day} {self.start_time})"
 
     class Meta:
         # Database-level guarantees against double-booking the same
@@ -101,8 +98,10 @@ class Grade(models.Model):
     teacher = models.ForeignKey(
         "accounts.TeacherProfile", on_delete=models.SET_NULL, null=True, related_name="grades_given"
     )
+    def __str__(self):
+        return f"{self.student.user.full_name} - {self.subject.subject_name} ({self.exam_type})"
     exam_date = models.DateField()
-
+    
     class Meta:
         # One mark entry per student, per subject, per exam type.
         unique_together = ("student", "subject", "exam_type")
@@ -119,7 +118,8 @@ class Assignment(models.Model):
     due_date = models.DateTimeField(db_index=True)
     attachment_url = models.URLField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    def __str__(self):
+        return f"{self.title} - {self.class_section} ({self.subject.subject_name})"
 
 class AssignmentSubmission(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name="submissions")
@@ -132,6 +132,8 @@ class AssignmentSubmission(models.Model):
     submitted_at = models.DateTimeField(auto_now=True)
     marks = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     feedback = models.TextField(blank=True, null=True)
+    def __str__(self):
+        return f"{self.student.user.full_name} - {self.assignment.title} ({self.submitted_at})"
 
     class Meta:
         # One submission row per student per assignment -- updated in

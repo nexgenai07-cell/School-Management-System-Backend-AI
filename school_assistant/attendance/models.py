@@ -31,7 +31,8 @@ class Attendance(models.Model):
     # once True, the API layer should reject further edits for that day.
     is_locked = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    def __str__(self):
+        return f"{self.student.user.full_name} - {self.date} ({self.status})"
     class Meta:
         unique_together = ("student", "date")  # one attendance row per student per day
         indexes = [models.Index(fields=["class_section", "date"])]
@@ -53,3 +54,5 @@ class BehaviorLog(models.Model):
     severity = models.CharField(max_length=10, choices=SEVERITY_CHOICES)
     action_taken = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"{self.student.user.full_name} - {self.severity} - {self.date}"

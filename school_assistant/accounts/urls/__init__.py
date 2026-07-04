@@ -5,7 +5,6 @@ admin.py / teacher.py / student.py / parent.py, not here.
 """
 
 from django.urls import path, include
-
 urlpatterns = [
     path("", include("accounts.urls.admin")),
     path("", include("accounts.urls.student")),

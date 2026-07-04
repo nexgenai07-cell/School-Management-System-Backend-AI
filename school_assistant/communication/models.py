@@ -32,7 +32,8 @@ class Notification(models.Model):
 
     is_read = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    def __str__(self):
+        return f"{self.sender.email} → {self.receiver.email} ({self.type})"
     class Meta:
         indexes = [models.Index(fields=["receiver", "is_read"])]
 
@@ -51,3 +52,5 @@ class MediaCampaignLog(models.Model):
         "accounts.User", on_delete=models.SET_NULL, null=True, related_name="campaigns_created"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"{self.platform} - {self.status} ({self.created_at})"

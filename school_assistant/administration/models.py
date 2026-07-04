@@ -23,6 +23,8 @@ class Complaint(models.Model):
     against_user = models.ForeignKey(
         "accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints_against"
     )
+    def __str__(self):
+        return f"{self.complaint_type} - {self.reporter.email} ({self.status})"
     attachment_url = models.URLField(blank=True, null=True)
     admin_remarks = models.TextField(blank=True, null=True)
     remarks_updated_at = models.DateTimeField(null=True, blank=True)
@@ -31,24 +33,12 @@ class Complaint(models.Model):
 
 
 class Inventory(models.Model):
-    CATEGORY_CHOICES = [
-        ("Electronics", "Electronics"),
-        ("Furniture", "Furniture"),
-        ("Stationery", "Stationery"),
-        ("Sports", "Sports"),
-        ("Other", "Other"),
-    ]
-
     item_name = models.CharField(max_length=150)
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default="Other")
     total_quantity = models.PositiveIntegerField()
-    assigned_to_room = models.CharField(max_length=100, blank=True, db_index=True)
+    assigned_to_room = models.CharField(max_length=100, blank=True, db_index=True)  # Page 10 filters by room
     last_updated = models.DateTimeField(auto_now=True)
-
     def __str__(self):
-        return f"{self.item_name} ({self.category})"
-
-
+        return f"{self.item_name} (Qty: {self.total_quantity})"
 
 class SchoolEvent(models.Model):
     event_name = models.CharField(max_length=200)
@@ -58,6 +48,8 @@ class SchoolEvent(models.Model):
         "accounts.User", on_delete=models.SET_NULL, null=True, related_name="events_created"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"{self.event_name} - {self.event_date}"
 
 
 class EventParticipation(models.Model):
@@ -73,6 +65,8 @@ class EventParticipation(models.Model):
         "Certificate", on_delete=models.SET_NULL, null=True, blank=True, related_name="event_participation"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"{self.student.user.full_name} - {self.event.event_name} ({self.role})"
 
     class Meta:
         unique_together = ("event", "student")
@@ -96,3 +90,5 @@ class Certificate(models.Model):
         "accounts.User", on_delete=models.SET_NULL, null=True, related_name="certificates_generated"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return f"{self.student.user.full_name} - {self.cert_type} ({self.created_at})"

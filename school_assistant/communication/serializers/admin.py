@@ -41,3 +41,21 @@ class MediaCampaignLogSerializer(serializers.ModelSerializer):
                 f"Invalid platform. Allowed: {', '.join(ALLOWED)}"
             )
         return value
+class AdminNotificationCreateSerializer(serializers.Serializer):
+    """Serializer for Admin to manually create notifications."""
+    message = serializers.CharField(required=True)
+    target_role = serializers.ChoiceField(
+        choices=['All', 'Admin', 'Teacher', 'Student', 'Parent'],
+        required=False,
+        help_text="Send to all users of this role. Use 'All' for everyone."
+    )
+    receiver_id = serializers.IntegerField(
+        required=False,
+        help_text="Send to a specific user (use this instead of target_role)."
+    )
+
+    def validate(self, data):
+        # Ensure at least one target is provided
+        if not data.get('receiver_id') and not data.get('target_role'):
+            raise serializers.ValidationError("Either receiver_id or target_role is required.")
+        return data
