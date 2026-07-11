@@ -3,6 +3,7 @@ from administration.views.admin import (
     ComplaintViewSet, InventoryViewSet, InventorySummaryView, SchoolEventViewSet,
     EventParticipationViewSet, CertificateViewSet, CertificateGenerateView, CertificateDownloadView,
 )
+from administration.views.admin import AdminStatsView
 
 urlpatterns = [
     path("support/complaints", ComplaintViewSet.as_view({"get": "list", "post": "create"})),
@@ -26,4 +27,5 @@ urlpatterns = [
     path("admin/certificates", CertificateViewSet.as_view({"get": "list"})),
     path("admin/certificates/<int:pk>", CertificateViewSet.as_view({"get": "retrieve"})),
     path("admin/certificates/<int:id>/download", CertificateDownloadView.as_view()),
+    path("admin/stats", AdminStatsView.as_view(), name="admin-stats"),
 ]

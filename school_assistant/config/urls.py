@@ -11,8 +11,10 @@ from django.urls import path, include
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-from django.views.decorators.csrf import csrf_exempt
-from finance.views.admin import StripeWebhookView
+
+# (Optional Stripe webhook import)
+# from finance.views.admin import StripeWebhookView
+
 schema_view = get_schema_view(
     openapi.Info(
         title="School ERP API",
@@ -24,20 +26,21 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    # Renamed from /admin/ to /admin-site/ so it doesn't clash with our
-    # own /api/admin/... route prefix used for the Admin role's endpoints.
+    # Admin site (renamed to avoid clash with /api/admin/)
     path("admin-site/", admin.site.urls),
 
-    # Swagger / ReDoc -- visit /swagger/ for interactive API testing.
+    # ── Swagger / ReDoc ──────────────────────────────────────
     path("swagger/", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
     path("redoc/", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+    # ✅ FIX: Add the raw OpenAPI schema endpoint (required for Swagger UI to load)
+    path("swagger/?format=openapi", schema_view.without_ui(cache_timeout=0), name="schema-json"),
 
+    # ── API Routes ────────────────────────────────────────────
     path("api/", include("accounts.urls")),
     path("api/", include("academics.urls")),
     path("api/", include("attendance.urls")),
     path("api/", include("finance.urls")),
     path("api/", include("communication.urls")),
     path("api/", include("administration.urls")),
-    path("api/", include("chat.urls")),  
-    
+    path("api/", include("chat.urls")),
 ]

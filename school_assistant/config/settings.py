@@ -175,12 +175,23 @@ CORS_EXPOSE_HEADERS = [
 ]
 
 # ── CHANNELS (WebSocket layer for the AI chatbot, backed by Redis) ──────────
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [config("REDIS_URL", default="redis://localhost:6379/0")]},
-    },
-}
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels_redis.core.RedisChannelLayer",
+#         "CONFIG": {"hosts": [config("REDIS_URL", default="redis://localhost:6379/0")]},
+#     },
+# }
+if config("USE_INMEMORY_CHANNELS", default=False, cast=bool):
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [config("REDIS_URL", default="redis://localhost:6379/0")]},
+        },
+    }
 
 # ── CELERY (background tasks + scheduled cron jobs, e.g. monthly fee generation) ──
 CELERY_BROKER_URL = config("REDIS_URL", default="redis://localhost:6379/0")
@@ -236,3 +247,8 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": "INFO"},
 }
+# ── AI CHATBOT (OpenRouter LLM gateway) ──────────────────────────────────
+OPENROUTER_API_KEY = config("OPENROUTER_API_KEY", default="")
+OPENROUTER_BASE_URL = config("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
+OPENROUTER_MODEL = config("OPENROUTER_MODEL", default="openai/gpt-4o-mini")
+FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:5173")

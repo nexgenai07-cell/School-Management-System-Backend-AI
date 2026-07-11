@@ -29,13 +29,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             "class_section_id", "cnic", "child_roll_number", "relation",
         ]
 
-    #  VALIDATION: Full name sirf letters aur spaces hon
+    # VALIDATION: Full name sirf letters aur spaces hon
     def validate_full_name(self, value):
         if not re.match(r"^[A-Za-z\s]+$", value):
             raise serializers.ValidationError("Full name must contain only letters and spaces.")
         return value.strip().title()
 
-    #  VALIDATION: CNIC format #####-#######-#
+    # VALIDATION: CNIC format #####-#######-#
     def validate_cnic(self, value):
         if value and not re.match(r"^\d{5}-\d{7}-\d$", value):
             raise serializers.ValidationError(
@@ -158,8 +158,9 @@ class StudentProfileAdminSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentProfile
         fields = [
-            "id", "full_name", "email", "roll_number", "class_section",
-            "guardian_name", "guardian_phone", "scholarship_percentage", "date_of_birth",
+            "id", "full_name", "email", "roll_number", "registration_number",  # ✅ Added registration_number
+            "class_section", "guardian_name", "guardian_phone",
+            "scholarship_percentage", "date_of_birth",
         ]
 
     # VALIDATION: Guardian name sirf letters aur spaces hon
@@ -168,7 +169,7 @@ class StudentProfileAdminSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Guardian name must contain only letters and spaces.")
         return value.strip().title()
 
-    #  VALIDATION: Pakistani phone number format
+    # VALIDATION: Pakistani phone number format
     def validate_guardian_phone(self, value):
         if value and not re.match(r"^03\d{2}-\d{7}$", value):
             raise serializers.ValidationError(
@@ -185,7 +186,7 @@ class TeacherProfileAdminSerializer(serializers.ModelSerializer):
         model = TeacherProfile
         fields = ["id", "full_name", "email", "cnic", "qualification", "specialization", "joining_date"]
 
-    #  VALIDATION: CNIC format #####-#######-#
+    # VALIDATION: CNIC format #####-#######-#
     def validate_cnic(self, value):
         if value and not re.match(r"^\d{5}-\d{7}-\d$", value):
             raise serializers.ValidationError(
@@ -210,3 +211,12 @@ class UserAdminSerializer(serializers.ModelSerializer):
             if existing.exists():
                 raise serializers.ValidationError("Only one Admin account is allowed in this system.")
         return value
+
+
+class ParentProfileAdminSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source="user.full_name", read_only=True)
+    email = serializers.CharField(source="user.email", read_only=True)
+
+    class Meta:
+        model = ParentProfile
+        fields = ["id", "full_name", "email", "user"]

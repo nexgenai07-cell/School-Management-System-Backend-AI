@@ -15,16 +15,27 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 # Django's app registry is ready first.
 django_asgi_app = get_asgi_application()
 
+# ✅ PERMANENT FIX: Wake up Neon DB at server startup
+# This ensures the database connection is alive BEFORE any WebSocket
+# handshake, preventing the 5-second cold-start timeout.
+from django.db import connection
+try:
+    connection.ensure_connection()
+    print("✅ Database connection established at startup")
+except Exception as e:
+    print(f"⚠️ Could not connect to DB at startup: {e}")
+
 from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
+
+from chat.middleware import JWTAuthMiddleware
+from chat.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    "websocket": AuthMiddlewareStack(
-        URLRouter([
-            # TODO: add chat.routing.websocket_urlpatterns here once
-            # chat/consumers.py and chat/routing.py are built, e.g.:
-            # path("ws/chat/<int:session_id>/", ChatConsumer.as_asgi()),
-        ])
+    # JWTAuthMiddleware (not Channels' default session-based
+    # AuthMiddlewareStack) because this project authenticates entirely
+    # via JWT -- there's no Django session cookie to read here.
+    "websocket": JWTAuthMiddleware(
+        URLRouter(websocket_urlpatterns)
     ),
 })

@@ -11,26 +11,34 @@ every role (see the note in serializers/admin.py for why).
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-
 from accounts.views.admin import (
-    RegisterView, ProfileView, ChangePasswordView,
-    PasswordResetRequestView, PasswordResetConfirmView,
-    RoleListView, PendingApprovalListView, ApprovalActionView,
-    UserViewSet, StudentProfileViewSet, TeacherProfileViewSet,
-    PasswordResetRequestView,PasswordResetConfirmView,
+    RegisterView,
+    ProfileView,
+    ChangePasswordView,
+    PasswordResetRequestView,
+    PasswordResetConfirmView,
+    RoleListView,
+    PendingApprovalListView,
+    ApprovalActionView,
+    UserViewSet,
+    StudentProfileViewSet,
+    TeacherProfileViewSet,
+    ParentProfileViewSet,
 )
 
 urlpatterns = [
     # ── Shared auth (every role) ────────────────────────────────────────
     path("auth/register", RegisterView.as_view(), name="auth-register"),
     path("auth/login", TokenObtainPairView.as_view(), name="auth-login"),
-
     path("auth/login/refresh", TokenRefreshView.as_view(), name="auth-login-refresh"),
     path("auth/profile", ProfileView.as_view(), name="auth-profile"),
     path("auth/change-password", ChangePasswordView.as_view(), name="auth-change-password"),
-    path("auth/password-reset", PasswordResetRequestView.as_view(), name="auth-password-reset"),
-    path("auth/password-reset/confirm", PasswordResetConfirmView.as_view(), name="auth-password-reset-confirm"),
 
+    # ✅ Password Reset (Custom EmailJS-based)
+    # path("auth/password-reset", PasswordResetRequestView.as_view(), name="auth-password-reset"),
+    path("auth/request-otp", PasswordResetRequestView.as_view(), name="auth-request-otp"),
+    # path("auth/password-reset/confirm", PasswordResetConfirmView.as_view(), name="auth-password-reset-confirm"),
+    path("auth/request-otp/confirm", PasswordResetConfirmView.as_view(), name="auth-otp-confirm"),
     # ── Admin-only ───────────────────────────────────────────────────────
     path("admin/roles", RoleListView.as_view(), name="admin-roles"),
     path("admin/approvals", PendingApprovalListView.as_view(), name="admin-approvals"),
@@ -50,7 +58,7 @@ urlpatterns = [
     ),
     path(
         "admin/student-profiles/<int:pk>",
-        StudentProfileViewSet.as_view({"get": "retrieve", "put": "update", "patch": "partial_update"}),
+        StudentProfileViewSet.as_view({"get": "retrieve", "put": "update", "patch": "partial_update","delete": "destroy"}),
         name="admin-student-profiles-detail",
     ),
 
@@ -61,10 +69,23 @@ urlpatterns = [
     ),
     path(
         "admin/teacher-profiles/<int:pk>",
-        TeacherProfileViewSet.as_view({"get": "retrieve", "put": "update", "patch": "partial_update"}),
+        TeacherProfileViewSet.as_view({"get": "retrieve", "put": "update", "patch": "partial_update" ,"delete": "destroy"}),
         name="admin-teacher-profiles-detail",
     ),
-        # ... (existing auth routes) ...
-    path("auth/password-reset", PasswordResetRequestView.as_view(), name="auth-password-reset"),
-    path("auth/password-reset/confirm", PasswordResetConfirmView.as_view(), name="auth-password-reset-confirm"),
+    path(
+        "admin/parent-profiles",
+        ParentProfileViewSet.as_view({"get": "list", "post": "create"}),
+        name="admin-parent-profiles-list",
+    ),
+    path(
+        "admin/parent-profiles/<int:pk>",
+        ParentProfileViewSet.as_view({
+            "get": "retrieve",
+            "put": "update",
+            "patch": "partial_update",
+            "delete": "destroy"
+        }),
+        name="admin-parent-profiles-detail",
+    ),
+    
 ]

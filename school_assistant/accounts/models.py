@@ -14,6 +14,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.core.exceptions import ValidationError
 
+
 class Role(models.Model):
     """
     Simple lookup table so that User.role is a clean foreign key instead
@@ -79,7 +80,7 @@ class UserManager(BaseUserManager):
         user.set_password(password)
         user.save(using=self._db)
 
-        # ✅ FIX: Profile creation removed from here.
+        # FIX: Profile creation removed from here.
         # Profiles (Student/Teacher/Parent) are now created ONLY by the
         # RegisterSerializer, which has all the required fields (cnic, class_section, etc.)
         # This prevents the "duplicate key (cnic)=()" IntegrityError.
@@ -136,6 +137,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ["full_name", "role"]
 
     objects = UserManager()
+
     def save(self, *args, **kwargs):
         """
         Enforces "Admin is a single pre-set account, no signup" (spec).
@@ -145,6 +147,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             if already_exists:
                 raise ValidationError("Only one Admin account is allowed in this system.")
         super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.full_name} ({self.role.role_name})"
 
@@ -163,6 +166,9 @@ class StudentProfile(models.Model):
     # them via ParentStudentLink below.
     roll_number = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
 
+    # ✅ NEW: Auto-generated registration number (global, irrespective of class)
+    registration_number = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
+
     class_section = models.ForeignKey("academics.ClassSection", on_delete=models.PROTECT, related_name="students")
 
     # Display-only fields -- NOT used for access control. ParentStudentLink
@@ -176,20 +182,70 @@ class StudentProfile(models.Model):
     )
     date_of_birth = models.DateField(null=True, blank=True)
 
+    @classmethod
+    def generate_roll_number(cls, class_section):
+        """
+        Generate roll number in format: {class_name}-{section}-{sequence}
+        Example: 10-A-001, 10-A-002, 10-B-001
+        """
+        prefix = f"{class_section.class_name}-{class_section.section}"
+
+        # Get the last roll number for this class
+        last_student = cls.objects.filter(
+            class_section=class_section,
+            roll_number__isnull=False
+        ).order_by('-roll_number').first()
+
+        if last_student and last_student.roll_number:
+            # Extract the sequence number from the last roll number
+            try:
+                last_seq = int(last_student.roll_number.split('-')[-1])
+                new_seq = last_seq + 1
+            except (ValueError, IndexError):
+                new_seq = 1
+        else:
+            new_seq = 1
+
+        return f"{prefix}-{new_seq:03d}"
+
+    @classmethod
+    def generate_registration_number(cls):
+        """
+        Generate registration number in format: REG-{sequence}
+        Example: REG-0001, REG-0002, REG-0003
+        """
+        # Get the last registration number
+        last_student = cls.objects.filter(
+            registration_number__isnull=False
+        ).order_by('-registration_number').first()
+
+        if last_student and last_student.registration_number:
+            try:
+                last_seq = int(last_student.registration_number.split('-')[-1])
+                new_seq = last_seq + 1
+            except (ValueError, IndexError):
+                new_seq = 1
+        else:
+            new_seq = 1
+
+        return f"REG-{new_seq:04d}"
+
     def __str__(self):
-        return f"{self.roll_number or 'unassigned'} - {self.user.full_name}"
+        roll = self.roll_number or 'unassigned'
+        reg = self.registration_number or 'unassigned'
+        return f"{roll} (Reg: {reg}) - {self.user.full_name}"
 
 
 class TeacherProfile(models.Model):
     """Extra fields specific to Teacher accounts."""
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="teacher_profile")
-    
+
     # ✅ FIX: Added null=True, blank=True to prevent "" (empty string) unique constraint violations.
     # If a teacher is created without a CNIC (e.g., via a bug or shell), it will store NULL
     # instead of "", which does NOT violate the unique constraint (PostgreSQL treats NULL as distinct).
     cnic = models.CharField(max_length=20, unique=True, null=True, blank=True)
-    
+
     qualification = models.CharField(max_length=150, blank=True)
     specialization = models.CharField(max_length=150, blank=True)
     joining_date = models.DateField(null=True, blank=True)
@@ -202,7 +258,7 @@ class ParentProfile(models.Model):
     """Extra fields specific to Parent accounts."""
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="parent_profile")
-
+    created_at = models.DateTimeField(auto_now_add=True)
     # The actual parent <-> child relationship lives in ParentStudentLink
     # below (a many-to-many bridge table), NOT as a direct foreign key here.
     children = models.ManyToManyField(StudentProfile, through="ParentStudentLink", related_name="parents")

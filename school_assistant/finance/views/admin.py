@@ -101,8 +101,46 @@ class FeeViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'student', 'month']
     search_fields = ['student__user__full_name', 'student__user__email']
-    ordering_fields = ['amount', 'month', 'status', 'created_at']
-    ordering = ['-created_at']
+    ordering_fields = ['amount', 'month', 'status', 'generated_at']
+    ordering = ['-generated_at']
+# class GenerateMonthlyChallansView(APIView):
+#     """
+#     POST /api/finance/generate-monthly-challans
+#     Manual trigger for the same logic the Celery cron job runs
+#     automatically at the start of each month. Fetches each student's
+#     class fee, applies their scholarship discount, and creates a Fee row
+#     -- skips students who already have one for that month.
+#     """
+#     permission_classes = [IsAdmin]
+
+#     def post(self, request):
+#         month = request.data.get("month")  # expected format: "YYYY-MM-01"
+#         if not month:
+#             return Response({"month": "Required, e.g. 2026-07-01"}, status=400)
+
+#         created_count, skipped_count = 0, 0
+
+#         for student in StudentProfile.objects.select_related("class_section").all():
+#             fee_structure = FeeStructure.objects.filter(class_section=student.class_section).first()
+#             if not fee_structure:
+#                 continue
+
+#             if Fee.objects.filter(student=student, month=month).exists():
+#                 skipped_count += 1
+#                 continue
+
+#             discount = Decimal(student.scholarship_percentage) / Decimal(100)
+#             original_amount = fee_structure.monthly_fee
+#             amount = original_amount * (Decimal(1) - discount)
+
+#             Fee.objects.create(
+#                 student=student, fee_structure=fee_structure, month=month,
+#                 original_amount=original_amount, amount=amount,
+#                 due_date=month, status="Unpaid",
+#             )
+#             created_count += 1
+
+#         return Response({"created": created_count, "skipped_existing": skipped_count})
 class GenerateMonthlyChallansView(APIView):
     """
     POST /api/finance/generate-monthly-challans
@@ -133,10 +171,13 @@ class GenerateMonthlyChallansView(APIView):
             original_amount = fee_structure.monthly_fee
             amount = original_amount * (Decimal(1) - discount)
 
+            #  FIX: If amount is 0, mark it as "Paid", otherwise "Unpaid"
+            fee_status = "Paid" if amount == 0 else "Unpaid"
+
             Fee.objects.create(
                 student=student, fee_structure=fee_structure, month=month,
                 original_amount=original_amount, amount=amount,
-                due_date=month, status="Unpaid",
+                due_date=month, status=fee_status,  #  Now passing the dynamic status
             )
             created_count += 1
 

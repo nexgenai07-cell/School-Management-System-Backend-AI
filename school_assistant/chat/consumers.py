@@ -1,14 +1,17 @@
 """
 WebSocket Consumer — Handles real-time chat messages.
-Authenticates users, saves messages, and calls the bot registry.
+Authenticates users (via JWTAuthMiddleware, see chat/middleware.py),
+checks the session belongs to them, saves messages, and delegates the
+actual reply to the bot registry.
 """
 import json
 import asyncio
 import logging
+from django.db import connection
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
-
+from django.db import close_old_connections
 from chat.models import ChatSession, ChatMessage
 from chat.services.bot_registry import get_bot_handler
 
@@ -22,31 +25,63 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.session_id = self.scope["url_route"]["kwargs"]["session_id"]
         self.room_group_name = f"chat_{self.session_id}"
 
-        # Authenticate user
+        # STEP 1: Authenticate user
         user = self.scope.get("user")
         if not user or isinstance(user, AnonymousUser):
-            await self.close()
+            await self.close(code=4001)
             return
 
-        # Check if the session belongs to this user
-        session = await self.get_session(self.session_id)
-        if not session or session.user.id != user.id:
-            await self.close()
+        # STEP 2: PERMANENT FIX — Wake up Neon DB before the session check
+        await database_sync_to_async(connection.ensure_connection)()
+
+        # STEP 3: Session ownership check
+        owner_id = await self.get_session_owner_id(self.session_id)
+        if owner_id is None or owner_id != user.id:
+            await self.close(code=4003)
             return
 
-        # Join the room
+        self.user = user
+
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
-        logger.info(f"WebSocket connected: User {user.id}, Session {self.session_id}")
+        
+        # ✅ NEW: Start keep-alive ping task to prevent idle timeouts
+        self.keep_alive_task = asyncio.create_task(self.send_keep_alive())
+        
+        logger.info("WebSocket connected: User %s, Session %s", user.id, self.session_id)
 
     async def disconnect(self, close_code):
+        # ✅ NEW: Cancel keep-alive task when connection closes
+        if hasattr(self, 'keep_alive_task'):
+            self.keep_alive_task.cancel()
+            
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
-        logger.info(f"WebSocket disconnected: {self.room_group_name}")
+        logger.info("WebSocket disconnected: %s", self.room_group_name)
+
+    # ✅ NEW: Background task to send ping every 30 seconds
+    async def send_keep_alive(self):
+        """Send a ping message every 30 seconds to keep the connection alive."""
+        while True:
+            try:
+                await asyncio.sleep(30)
+                await self.send(text_data=json.dumps({"type": "ping"}))
+            except Exception:
+                # Connection closed or error, exit the loop
+                break
 
     async def receive(self, text_data):
+        await database_sync_to_async(close_old_connections)()
         """Handle incoming WebSocket messages."""
+        print(" RECEIVED CALLED ")   # checking in the terminal
+        print("TEXT DATA:", text_data) #checking in the terminal
+        
         try:
             data = json.loads(text_data)
+            
+            # ✅ NEW: Ignore client pings (if frontend sends them)
+            if data.get("type") == "ping":
+                return
+
             user_message = data.get("message", "").strip()
             if not user_message:
                 return
@@ -54,22 +89,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             # Save user message
             await self.save_message("user", user_message)
 
-            # Get session and user
             session = await self.get_session(self.session_id)
-            user = self.scope["user"]
 
-            # Send "typing..." indicator
+            # "typing..." indicator while the bot/LLM does its work
             await self.send(json.dumps({"type": "typing", "status": True}))
 
-            # Get AI response (runs in thread to avoid blocking)
+            # Runs in a real OS thread (not an asyncio task) so the
+            # synchronous Django ORM + requests call inside the bot are safe.
             ai_response = await asyncio.to_thread(
-                get_bot_handler, user, session, user_message
+                get_bot_handler, self.user, session, user_message
             )
 
-            # Save AI response
             ai_msg = await self.save_message("assistant", ai_response)
 
-            # Send AI response to client
             await self.send(json.dumps({
                 "type": "message",
                 "role": "assistant",
@@ -81,13 +113,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except json.JSONDecodeError:
             await self.send(json.dumps({"type": "error", "error": "Invalid JSON format."}))
         except Exception as e:
-            logger.error(f"Error in receive: {e}")
-            await self.send(json.dumps({"type": "error", "error": str(e)}))
+            logger.exception("Error in ChatConsumer.receive")
+            await self.send(json.dumps({"type": "error", "error": "Something went wrong. Please try again."}))
+
+    @database_sync_to_async
+    def get_session_owner_id(self, session_id):
+        return ChatSession.objects.filter(id=session_id).values_list("user_id", flat=True).first()
 
     @database_sync_to_async
     def get_session(self, session_id):
         try:
-            return ChatSession.objects.get(id=session_id)
+            return ChatSession.objects.select_related("user", "active_child").get(id=session_id)
         except ChatSession.DoesNotExist:
             return None
 
