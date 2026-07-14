@@ -104,6 +104,13 @@ if DATABASE_URL:
             "HOST": _db.hostname,
             "PORT": _db.port or 5432,
             "OPTIONS": {"sslmode": "require"},  # Neon requires SSL
+            # Neon drops idle connections on its own -- WebSocket consumers
+            # hold connections open much longer than normal HTTP requests,
+            # so a stale connection is common. CONN_HEALTH_CHECKS pings
+            # before reuse and transparently reconnects if Neon already
+            # closed it, instead of crashing with "SSL SYSCALL error".
+            "CONN_MAX_AGE": 0,
+            "CONN_HEALTH_CHECKS": True,
         }
     }
 else:

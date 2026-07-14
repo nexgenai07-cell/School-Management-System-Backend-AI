@@ -13,10 +13,18 @@ from academics.models import ClassSection, Subject, Room, Timetable
 
 class ClassSectionSerializer(serializers.ModelSerializer):
     default_room_name = serializers.CharField(source="default_room.name", read_only=True)
+    teacher_incharge_name = serializers.CharField(
+        source="teacher_incharge.user.full_name",
+        read_only=True
+    )
 
     class Meta:
         model = ClassSection
-        fields = ["id", "class_name", "section", "default_room", "default_room_name", "created_at"]
+        fields = [
+            "id", "class_name", "section", "default_room",
+            "default_room_name", "teacher_incharge", "teacher_incharge_name",
+            "created_at"
+        ]
 
     #  NEW VALIDATION: Sirf PG se 10 tak ki classes allow hain
     def validate_class_name(self, value):

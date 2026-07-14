@@ -16,13 +16,25 @@ from django.db import models
 class ClassSection(models.Model):
     class_name = models.CharField(max_length=20)
     section = models.CharField(max_length=5)
+    
+    #  FIX: Use string reference 'Room' instead of Room
     default_room = models.ForeignKey(
-        "Room", 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
+        'Room',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="default_classes"
     )
+    
+    #  NEW: Class Teacher / In-charge
+    teacher_incharge = models.ForeignKey(
+        "accounts.TeacherProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="classes_incharge"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

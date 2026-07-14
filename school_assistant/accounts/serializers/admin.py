@@ -194,7 +194,6 @@ class TeacherProfileAdminSerializer(serializers.ModelSerializer):
             )
         return value
 
-
 class UserAdminSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source="role.role_name", read_only=True)
 
@@ -216,7 +215,65 @@ class UserAdminSerializer(serializers.ModelSerializer):
 class ParentProfileAdminSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source="user.full_name", read_only=True)
     email = serializers.CharField(source="user.email", read_only=True)
+    
+    # New: For updating relation
+    relation = serializers.ChoiceField(
+        choices=["Father", "Mother", "Guardian"],
+        required=False,
+        write_only=True
+    )
+    #  New: For updating child via roll number
+    child_roll_number = serializers.CharField(
+        required=False,
+        write_only=True,
+        help_text="Update child by roll number (e.g., 10-A-001)"
+    )
 
     class Meta:
         model = ParentProfile
-        fields = ["id", "full_name", "email", "user"]
+        fields = [
+            "id", "full_name", "email", "user",
+            "relation", "child_roll_number"
+        ]
+        read_only_fields = ["id", "user"]
+
+    def update(self, instance, validated_data):
+        relation = validated_data.pop("relation", None)
+        child_roll_number = validated_data.pop("child_roll_number", None)
+
+        # Update relation (update the first ParentStudentLink or create if needed)
+        if relation is not None:
+            link = instance.child_links.first()
+            if link:
+                link.relation = relation
+                link.save()
+            else:
+                # If no link exists, create one (will need a student)
+                student = StudentProfile.objects.first()
+                if student:
+                    ParentStudentLink.objects.create(
+                        parent=instance,
+                        student=student,
+                        relation=relation
+                    )
+
+        # Update child by roll number
+        if child_roll_number is not None:
+            try:
+                student = StudentProfile.objects.get(roll_number=child_roll_number)
+                link = instance.child_links.first()
+                if link:
+                    link.student = student
+                    link.save()
+                else:
+                    ParentStudentLink.objects.create(
+                        parent=instance,
+                        student=student,
+                        relation=relation or "Guardian"
+                    )
+            except StudentProfile.DoesNotExist:
+                raise serializers.ValidationError(
+                    {"child_roll_number": f"No student found with roll number: {child_roll_number}"}
+                )
+
+        return instance
