@@ -31,3 +31,6 @@ db.sqlite3
 *.swp
 .DS_Store
 .vercel
+
+__pycache__/
+*.pyc
