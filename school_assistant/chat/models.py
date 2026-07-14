@@ -15,29 +15,9 @@ from django.db import models
 
 
 class ChatSession(models.Model):
-    """
-    One conversation thread. Only Admin actually chooses between the 10
-    specialized bot types below (the "Bot Hub"); Teacher/Student/Parent
-    sessions default to "general" since the spec only gives Admin a hub
-    of multiple assistants -- the other three roles get one scoped bot each.
-    """
-
-    BOT_TYPE_CHOICES = (
-        ("maintenance", "Maintenance & Help Desk Bot"),
-        ("fee", "Fee Bot"),
-        ("media", "Media Bot"),
-        ("assignment", "Assignment Bot"),
-        ("exam", "Exam Bot"),
-        ("attendance", "Attendance & Compliance Bot"),
-        ("certificate", "Certificates Bot"),
-        ("scholarship", "Scholarship Bot"),
-        ("inventory", "Inventory Bot"),
-        ("event", "Event Bot"),
-        ("general", "General Assistant"),  # used by Teacher / Student / Parent
-    )
+    """One conversation thread."""
 
     user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="chat_sessions")
-    bot_type = models.CharField(max_length=20, choices=BOT_TYPE_CHOICES, default="general")
     title = models.CharField(max_length=200, blank=True)  # auto-filled from the first user message
 
     # Only meaningful when user.role == Parent -- tracks which child the
@@ -47,8 +27,10 @@ class ChatSession(models.Model):
         "accounts.StudentProfile", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
     def __str__(self):
-        return f"{self.user.email} - {self.bot_type} ({self.created_at})"
+        return f"{self.user.email} ({self.created_at})"
+
 
 class ChatMessage(models.Model):
     ROLE_CHOICES = (("user", "user"), ("assistant", "assistant"))
@@ -57,7 +39,18 @@ class ChatMessage(models.Model):
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+
     def __str__(self):
         return f"{self.session.user.email} - {self.role} ({self.created_at})"
+
     class Meta:
         ordering = ["created_at"]
+class PendingAction(models.Model):
+    bot_type = models.CharField(max_length=20)
+    action_name = models.CharField(max_length=50)
+    params = models.JSONField(default=dict)
+    summary = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    session = models.OneToOneField(
+        ChatSession, on_delete=models.CASCADE, related_name="pending_action"
+    )

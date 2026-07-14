@@ -6,7 +6,7 @@ class ParentChatSessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ChatSession
-        fields = ["id", "bot_type", "title", "active_child", "active_child_name", "created_at"]
+        fields = ["id", "title", "active_child", "active_child_name", "created_at"]
 
 
 class ParentChatMessageSerializer(serializers.ModelSerializer):

@@ -1,3 +1,4 @@
+
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
@@ -15,8 +16,7 @@ class ParentChatSessionViewSet(viewsets.ModelViewSet):
         return ChatSession.objects.filter(user=self.request.user).order_by("-created_at")
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user, bot_type="general")
-
+        serializer.save(user=self.request.user)
 
 class ParentChatMessageViewSet(viewsets.ModelViewSet):
     """Parents can send and view messages in their sessions."""

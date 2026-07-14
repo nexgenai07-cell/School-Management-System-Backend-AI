@@ -15,7 +15,7 @@ class TeacherChatSessionViewSet(viewsets.ModelViewSet):
         return ChatSession.objects.filter(user=self.request.user).order_by("-created_at")
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user, bot_type="general")
+        serializer.save(user=self.request.user)
 
 
 class TeacherChatMessageViewSet(viewsets.ModelViewSet):
