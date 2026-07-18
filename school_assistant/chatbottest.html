@@ -21,6 +21,7 @@
   .row { display: flex; gap: 8px; }
   .row input { flex: 1; }
   .row button { width: auto; padding: 9px 16px; }
+  #wsStatus { font-size: 12px; color: #666; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -32,30 +33,18 @@
   <label>Server base URL</label>
   <input id="baseUrl" value="http://127.0.0.1:8000">
   <label>Email</label>
-  <input id="email" placeholder="admin@example.com">
+  <input id="email" value="admin@demo.school">
   <label>Password</label>
-  <input id="password" type="password">
+  <input id="password" type="password" value="admin123">
   <button onclick="login()">Login</button>
   <div id="status"></div>
 </div>
 
 <div class="card" id="sessionCard" style="display:none">
-  <b>Step 2 — Start a bot session</b>
-  <label>Choose bot</label>
-  <select id="botType">
-    <option value="fee">Fee Bot</option>
-    <option value="attendance">Attendance Bot</option>
-    <option value="assignment">Assignment Bot</option>
-    <option value="exam">Exam Bot</option>
-    <option value="certificate">Certificates Bot</option>
-    <option value="scholarship">Scholarship Bot</option>
-    <option value="inventory">Inventory Bot</option>
-    <option value="event">Event Bot</option>
-    <option value="maintenance">Maintenance Bot</option>
-    <option value="media">Media Bot</option>
-  </select>
+  <b>Step 2 — Start a chat session</b>
   <button onclick="startSession()">Create Session + Connect</button>
   <div id="sessionStatus"></div>
+  <div id="wsStatus"></div>
 </div>
 
 <div class="card" id="chatCard" style="display:none">
@@ -70,6 +59,7 @@
 <script>
 let accessToken = null;
 let ws = null;
+let sessionId = null;
 
 function addMsg(role, text) {
   const box = document.getElementById('chatBox');
@@ -80,13 +70,16 @@ function addMsg(role, text) {
   box.scrollTop = box.scrollHeight;
 }
 
+function setStatus(id, text, color = '#666') {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.style.color = color; }
+}
+
 async function login() {
   const baseUrl = document.getElementById('baseUrl').value.trim();
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
-  const statusEl = document.getElementById('status');
-  statusEl.textContent = 'Logging in...';
-  statusEl.style.color = '#666';
+  setStatus('status', 'Logging in...', '#666');
 
   try {
     const res = await fetch(`${baseUrl}/api/auth/login`, {
@@ -98,21 +91,17 @@ async function login() {
     if (!res.ok) throw new Error(JSON.stringify(data));
 
     accessToken = data.access;
-    statusEl.textContent = '✅ Logged in';
-    statusEl.style.color = 'green';
+    setStatus('status', '✅ Logged in successfully!', 'green');
     document.getElementById('sessionCard').style.display = 'block';
   } catch (err) {
-    statusEl.textContent = '❌ Login failed: ' + err.message;
-    statusEl.style.color = 'red';
+    setStatus('status', '❌ Login failed: ' + err.message, 'red');
   }
 }
 
 async function startSession() {
   const baseUrl = document.getElementById('baseUrl').value.trim();
-  const botType = document.getElementById('botType').value;
-  const statusEl = document.getElementById('sessionStatus');
-  statusEl.textContent = 'Creating session...';
-  statusEl.style.color = '#666';
+  setStatus('sessionStatus', 'Creating session...', '#666');
+  setStatus('wsStatus', '');
 
   try {
     const res = await fetch(`${baseUrl}/api/chat/sessions`, {
@@ -121,55 +110,76 @@ async function startSession() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`
       },
-      body: JSON.stringify({ bot_type: botType })
+      body: JSON.stringify({})
     });
     const data = await res.json();
     if (!res.ok) throw new Error(JSON.stringify(data));
 
-    const sessionId = data.id || data.session_id;
-    statusEl.textContent = `✅ Session #${sessionId} created. Connecting WebSocket...`;
-    statusEl.style.color = 'green';
-
+    sessionId = data.id || data.session_id;
+    setStatus('sessionStatus', `✅ Session #${sessionId} created. Connecting WebSocket...`, 'green');
     connectWebSocket(baseUrl, sessionId);
   } catch (err) {
-    statusEl.textContent = '❌ Failed: ' + err.message;
-    statusEl.style.color = 'red';
+    setStatus('sessionStatus', '❌ Failed: ' + err.message, 'red');
   }
 }
 
 function connectWebSocket(baseUrl, sessionId) {
   const wsBase = baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
-  ws = new WebSocket(`${wsBase}/ws/chat/${sessionId}/?token=${accessToken}`);
+  const wsUrl = `${wsBase}/ws/chat/${sessionId}/?token=${accessToken}`;
+  setStatus('wsStatus', '🔌 Connecting WebSocket...', '#666');
+
+  ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
-    addMsg('system', '✅ WebSocket connected');
+    setStatus('wsStatus', '✅ WebSocket connected!', 'green');
     document.getElementById('chatCard').style.display = 'block';
+    addMsg('system', '✅ WebSocket connected');
   };
 
   ws.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data.type === 'message') {
-      addMsg('assistant', data.content);
-    } else if (data.type === 'error') {
-      addMsg('system', '⚠️ Error: ' + data.error);
-    } else if (data.type === 'typing') {
-      addMsg('system', '...bot is thinking...');
+    try {
+      const data = JSON.parse(e.data);
+      
+      // ✅ Ignore ping messages (keep-alive)
+      if (data.type === 'ping') {
+        console.log('🔹 Received ping (ignored)');
+        return;
+      }
+
+      if (data.type === 'message') {
+        addMsg('assistant', data.content);
+      } else if (data.type === 'error') {
+        addMsg('system', '⚠️ Error: ' + data.error);
+      } else if (data.type === 'typing') {
+        addMsg('system', '...bot is thinking...');
+      } else if (data.type === 'typing_status') {
+        // Ignore
+      }
+    } catch (err) {
+      console.error('Error parsing message:', err, e.data);
     }
   };
 
   ws.onclose = (e) => {
-    addMsg('system', `❌ Connection closed (code ${e.code})`);
+    setStatus('wsStatus', `❌ Connection closed (code: ${e.code}, reason: ${e.reason || 'No reason'})`, 'red');
+    addMsg('system', `❌ Connection closed (code: ${e.code})`);
+    document.getElementById('chatCard').style.display = 'none';
   };
 
-  ws.onerror = () => {
-    addMsg('system', '⚠️ WebSocket error — check console (F12) for details');
+  ws.onerror = (e) => {
+    setStatus('wsStatus', '⚠️ WebSocket error — check console (F12)', 'red');
+    addMsg('system', '⚠️ WebSocket error — check console (F12)');
+    console.error('WebSocket error:', e);
   };
 }
 
 function sendMessage() {
   const input = document.getElementById('msgInput');
   const text = input.value.trim();
-  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) {
+    alert('WebSocket not connected!');
+    return;
+  }
 
   addMsg('user', text);
   ws.send(JSON.stringify({ message: text }));

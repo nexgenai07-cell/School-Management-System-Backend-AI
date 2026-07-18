@@ -1,0 +1,14 @@
+p, admin, *, *, allow
+
+p, teacher, my_class, read, allow
+p, teacher, attendance, write, allow
+p, teacher, marks, write, allow
+p, teacher, assignment, write, allow
+p, teacher, complaint, write, allow
+
+p, student, own_data, read, allow
+p, student, certificate, write, allow
+p, student, complaint, write, allow
+
+p, parent, child_data, read, allow
+p, parent, complaint, write, allow

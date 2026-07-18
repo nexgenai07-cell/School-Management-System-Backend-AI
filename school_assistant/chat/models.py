@@ -46,11 +46,11 @@ class ChatMessage(models.Model):
     class Meta:
         ordering = ["created_at"]
 class PendingAction(models.Model):
-    bot_type = models.CharField(max_length=20)
-    action_name = models.CharField(max_length=50)
-    params = models.JSONField(default=dict)
-    summary = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
     session = models.OneToOneField(
         ChatSession, on_delete=models.CASCADE, related_name="pending_action"
     )
+    tool_name = models.CharField(max_length=100)
+    params = models.JSONField(default=dict)
+    status = models.CharField(max_length=20, default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)

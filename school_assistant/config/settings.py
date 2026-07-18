@@ -109,7 +109,8 @@ if DATABASE_URL:
             # so a stale connection is common. CONN_HEALTH_CHECKS pings
             # before reuse and transparently reconnects if Neon already
             # closed it, instead of crashing with "SSL SYSCALL error".
-            "CONN_MAX_AGE": 0,
+            # "CONN_MAX_AGE": 0,
+            "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=0, cast=int),
             "CONN_HEALTH_CHECKS": True,
         }
     }

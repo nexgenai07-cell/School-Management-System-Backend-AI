@@ -36,3 +36,9 @@ __pycache__/
 *.pyc
 *.exe
 .env
+# Pycache ko har folder me block krnay k liye
+**/__pycache__/
+*.pyc
+
+# Aap ka virtual environment
+.venv_ai/

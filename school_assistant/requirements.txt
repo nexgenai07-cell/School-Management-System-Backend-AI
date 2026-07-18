@@ -18,3 +18,13 @@ requests==2.31.0
 # Add ONE of these once the AI chatbot's LLM integration is actually built:
 # openai==1.30.0
 # google-generativeai==0.5.4
+langchain
+langchain-google-genai
+langchain-openai
+casbin
+
+casbin
+
+daphne
+cloudinary==1.41.0
+django-cloudinary-storage==0.3.0
