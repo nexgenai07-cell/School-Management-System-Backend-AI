@@ -360,3 +360,160 @@ def get_child_assignments_service(child_id, status=None):
 def get_child_assignment_details_service(assignment_id, child_id=None):
     """Alias for get_assignment_details_service."""
     return get_assignment_details_service(assignment_id, child_id)
+# ============================================================
+# NEW (59-tool plan)
+# ============================================================
+
+def list_classes_service():
+    qs = ClassSection.objects.select_related("default_room", "teacher_incharge__user").all()
+    return [
+        {
+            "id": c.id, "class_name": c.class_name, "section": c.section,
+            "default_room": c.default_room.name if c.default_room else None,
+            "teacher_incharge": c.teacher_incharge.user.full_name if c.teacher_incharge else None,
+        }
+        for c in qs
+    ]
+
+
+def get_class_details_service(class_section_str):
+    cs = parse_class_section(class_section_str)
+    student_count = cs.students.count()
+    subject_count = cs.subjects.count()
+    return {
+        "class_name": cs.class_name, "section": cs.section,
+        "default_room": cs.default_room.name if cs.default_room else None,
+        "teacher_incharge": cs.teacher_incharge.user.full_name if cs.teacher_incharge else None,
+        "student_count": student_count, "subject_count": subject_count,
+    }
+
+
+def update_class_section_service(class_section_str, new_class_name=None, new_section=None,
+                                  default_room_name=None, teacher_incharge_name=None):
+    cs = parse_class_section(class_section_str)
+    if new_class_name is not None:
+        cs.class_name = new_class_name
+    if new_section is not None:
+        cs.section = new_section
+    if default_room_name is not None:
+        room = Room.objects.filter(name__iexact=default_room_name).first()
+        cs.default_room = room
+    if teacher_incharge_name is not None:
+        teacher = TeacherProfile.objects.filter(user__full_name__icontains=teacher_incharge_name).first()
+        cs.teacher_incharge = teacher
+    cs.save()
+    return cs
+
+
+def delete_class_section_service(class_section_str):
+    cs = parse_class_section(class_section_str)
+    cs.delete()  # will raise ProtectedError/cascade depending on FK setup if students exist
+    return True
+
+
+def list_subjects_service(class_section=None):
+    qs = Subject.objects.select_related("class_section", "assigned_teacher__user").all()
+    if class_section:
+        qs = qs.filter(class_section=parse_class_section(class_section))
+    return [
+        {
+            "id": s.id, "subject_name": s.subject_name, "class_section": str(s.class_section),
+            "assigned_teacher": s.assigned_teacher.user.full_name if s.assigned_teacher else None,
+        }
+        for s in qs
+    ]
+
+
+def update_subject_service(subject_name, class_section, new_subject_name=None, teacher_name=None):
+    cs = parse_class_section(class_section)
+    subject = Subject.objects.get(subject_name__iexact=subject_name, class_section=cs)
+    if new_subject_name is not None:
+        subject.subject_name = new_subject_name
+    if teacher_name is not None:
+        teacher = TeacherProfile.objects.filter(user__full_name__icontains=teacher_name).first()
+        subject.assigned_teacher = teacher
+    subject.save()
+    return subject
+
+
+def delete_subject_service(subject_name, class_section):
+    cs = parse_class_section(class_section)
+    subject = Subject.objects.get(subject_name__iexact=subject_name, class_section=cs)
+    subject.delete()
+    return True
+
+
+def list_rooms_service():
+    return list(Room.objects.values("id", "name", "location", "capacity"))
+
+
+def create_room_service(name, location=None, capacity=None):
+    room, created = Room.objects.get_or_create(
+        name=name, defaults={"location": location or "", "capacity": capacity}
+    )
+    if not created:
+        raise ValueError(f"Room '{name}' pehle se exist karta hai.")
+    return room
+
+
+def update_room_service(room_name, new_name=None, location=None, capacity=None):
+    room = Room.objects.get(name__iexact=room_name)
+    if new_name is not None:
+        room.name = new_name
+    if location is not None:
+        room.location = location
+    if capacity is not None:
+        room.capacity = capacity
+    room.save()
+    return room
+
+
+def delete_room_service(room_name):
+    room = Room.objects.get(name__iexact=room_name)
+    room.delete()
+    return True
+
+
+def list_timetable_service(class_section=None, day=None):
+    qs = Timetable.objects.select_related("class_section", "subject", "teacher__user", "room")
+    if class_section:
+        qs = qs.filter(class_section=parse_class_section(class_section))
+    if day:
+        qs = qs.filter(day__iexact=day)
+    return [
+        {
+            "class_section": str(t.class_section), "subject": t.subject.subject_name,
+            "teacher": t.teacher.user.full_name, "day": t.day,
+            "start_time": t.start_time.strftime("%H:%M"), "end_time": t.end_time.strftime("%H:%M"),
+            "room": t.room.name if t.room else None,
+        }
+        for t in qs.order_by("day", "start_time")
+    ]
+
+
+def update_timetable_entry_service(class_section, subject_name, day, start_time,
+                                    new_start_time=None, new_end_time=None,
+                                    new_teacher_name=None, new_room_name=None):
+    cs = parse_class_section(class_section)
+    entry = Timetable.objects.get(
+        class_section=cs, subject__subject_name__iexact=subject_name, day__iexact=day, start_time=start_time
+    )
+    if new_start_time is not None:
+        entry.start_time = new_start_time
+    if new_end_time is not None:
+        entry.end_time = new_end_time
+    if new_teacher_name is not None:
+        entry.teacher = TeacherProfile.objects.get(user__full_name__icontains=new_teacher_name)
+    if new_room_name is not None:
+        entry.room = Room.objects.filter(name__iexact=new_room_name).first()
+    entry.save()
+    return entry
+
+
+def delete_timetable_entry_service(class_section, subject_name, day, start_time):
+    cs = parse_class_section(class_section)
+    entry = Timetable.objects.get(
+        class_section=cs, subject__subject_name__iexact=subject_name, day__iexact=day, start_time=start_time
+    )
+    entry.delete()
+    return True

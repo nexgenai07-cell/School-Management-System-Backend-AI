@@ -44,7 +44,7 @@ class Inventory(models.Model):
     item_name = models.CharField(max_length=150)
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default="Other")
     total_quantity = models.PositiveIntegerField()
-    assigned_to_room = models.CharField(max_length=100, blank=True, db_index=True)
+    assigned_to_room = models.CharField(max_length=100, blank=True, db_index=True,null=True)
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):

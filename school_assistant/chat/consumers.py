@@ -21,15 +21,27 @@ from accounts.services import (
     approve_user_service, reject_user_service, assign_scholarship_service,
     update_student_profile_service, delete_student_profile_service,
     delete_teacher_profile_service, delete_parent_profile_service,
+    update_teacher_profile_service, update_parent_profile_service,
 )
 from administration.services import (
     resolve_ticket_service, create_event_service, update_inventory_service,
     approve_certificate_request_service, file_complaint_service,
     request_certificate_service, cancel_certificate_request_service,
+    create_inventory_service, delete_inventory_service,
+    update_event_service, delete_event_service,
 )
 from academics.services import (
     create_class_section_service, create_subject_service, create_timetable_entry_service,
     upload_grades_service, create_assignment_service,
+    update_class_section_service, delete_class_section_service,
+    update_subject_service, delete_subject_service,
+    create_room_service, update_room_service, delete_room_service,
+    update_timetable_entry_service, delete_timetable_entry_service,
+)
+from finance.services import (
+    create_fee_structure_service, update_fee_structure_service, delete_fee_structure_service,
+    generate_monthly_challans_service, update_challan_service, delete_challan_service,
+    record_payment_service,
 )
 from communication.services import send_notification_service
 from attendance.services import mark_attendance_service
@@ -100,6 +112,111 @@ def _execute_delete_parent_profile(parent_id):
     return "Parent profile delete ho gaya."
 
 
+# ---- Admin — NEW: class/subject/room/timetable updates-deletes ----
+
+def _execute_update_class_section(class_section_str, new_class_name=None, new_section=None,
+                                   default_room_name=None, teacher_incharge_name=None):
+    update_class_section_service(class_section_str, new_class_name, new_section,
+                                  default_room_name, teacher_incharge_name)
+    return f"Class {class_section_str} update ho gayi."
+
+def _execute_delete_class_section(class_section_str):
+    delete_class_section_service(class_section_str)
+    return f"Class {class_section_str} delete ho gayi."
+
+def _execute_update_subject(subject_name, class_section, new_subject_name=None, teacher_name=None):
+    update_subject_service(subject_name, class_section, new_subject_name, teacher_name)
+    return f"{subject_name} update ho gaya."
+
+def _execute_delete_subject(subject_name, class_section):
+    delete_subject_service(subject_name, class_section)
+    return f"{subject_name} delete ho gaya."
+
+def _execute_create_room(name, location=None, capacity=None):
+    create_room_service(name, location, capacity)
+    return f"Room '{name}' ban gaya."
+
+def _execute_update_room(room_name, new_name=None, location=None, capacity=None):
+    update_room_service(room_name, new_name, location, capacity)
+    return f"Room '{room_name}' update ho gaya."
+
+def _execute_delete_room(room_name):
+    delete_room_service(room_name)
+    return f"Room '{room_name}' delete ho gaya."
+
+def _execute_update_timetable_entry(class_section, subject_name, day, start_time,
+                                     new_start_time=None, new_end_time=None,
+                                     new_teacher_name=None, new_room_name=None):
+    update_timetable_entry_service(class_section, subject_name, day, start_time,
+                                    new_start_time, new_end_time, new_teacher_name, new_room_name)
+    return "Timetable slot update ho gaya."
+
+def _execute_delete_timetable_entry(class_section, subject_name, day, start_time):
+    delete_timetable_entry_service(class_section, subject_name, day, start_time)
+    return "Timetable slot delete ho gaya."
+
+
+# ---- Admin — NEW: profiles ----
+
+def _execute_update_teacher_profile(teacher_id, qualification=None, specialization=None):
+    update_teacher_profile_service(teacher_id, qualification, specialization)
+    return "Teacher profile update ho gaya."
+
+def _execute_update_parent_profile(user_id):
+    update_parent_profile_service(user_id)
+    return "Parent profile update ho gaya."
+
+
+# ---- Admin — NEW: finance ----
+
+def _execute_create_fee_structure(class_section, monthly_fee):
+    create_fee_structure_service(class_section, monthly_fee)
+    return f"{class_section} ke liye fee structure ban gaya."
+
+def _execute_update_fee_structure(class_section, monthly_fee):
+    update_fee_structure_service(class_section, monthly_fee)
+    return f"{class_section} ki fee update ho gayi."
+
+def _execute_delete_fee_structure(class_section):
+    delete_fee_structure_service(class_section)
+    return f"{class_section} ka fee structure delete ho gaya."
+
+def _execute_generate_monthly_challans(month):
+    generate_monthly_challans_service(month)
+    return f"{month} ke challans generate ho gaye."
+
+def _execute_update_challan(challan_id, amount=None, status=None):
+    update_challan_service(challan_id, amount, status)
+    return f"Challan #{challan_id} update ho gaya."
+
+def _execute_delete_challan(challan_id):
+    delete_challan_service(challan_id)
+    return f"Challan #{challan_id} delete ho gaya."
+
+def _execute_record_payment(challan_id, amount_paid, payment_method, payment_date):
+    record_payment_service(challan_id, amount_paid, payment_method, payment_date)
+    return f"Challan #{challan_id} par payment record ho gayi."
+
+
+# ---- Admin — NEW: inventory / events ----
+
+def _execute_create_inventory(item_name, category, total_quantity, assigned_to_room=None):
+    create_inventory_service(item_name, category, total_quantity, assigned_to_room)
+    return f"{item_name} inventory mein add ho gaya."
+
+def _execute_delete_inventory(item_name, room=None):
+    delete_inventory_service(item_name, room)
+    return f"{item_name} inventory se delete ho gaya."
+
+def _execute_update_event(event_name, new_name=None, date=None, venue=None):
+    update_event_service(event_name, new_name, date, venue)
+    return f"Event '{event_name}' update ho gaya."
+
+def _execute_delete_event(event_name):
+    delete_event_service(event_name)
+    return f"Event '{event_name}' delete ho gaya."
+
+
 # ======================= Teacher executors =======================
 
 def _execute_mark_attendance(class_section_id, date, present_roll_numbers):
@@ -162,6 +279,29 @@ TOOL_REGISTRY = {
     "delete_student_profile": _execute_delete_student_profile,
     "delete_teacher_profile": _execute_delete_teacher_profile,
     "delete_parent_profile": _execute_delete_parent_profile,
+    # Admin — NEW (22)
+    "update_class_section": _execute_update_class_section,
+    "delete_class_section": _execute_delete_class_section,
+    "update_subject": _execute_update_subject,
+    "delete_subject": _execute_delete_subject,
+    "create_room": _execute_create_room,
+    "update_room": _execute_update_room,
+    "delete_room": _execute_delete_room,
+    "update_timetable_entry": _execute_update_timetable_entry,
+    "delete_timetable_entry": _execute_delete_timetable_entry,
+    "update_teacher_profile": _execute_update_teacher_profile,
+    "update_parent_profile": _execute_update_parent_profile,
+    "create_fee_structure": _execute_create_fee_structure,
+    "update_fee_structure": _execute_update_fee_structure,
+    "delete_fee_structure": _execute_delete_fee_structure,
+    "generate_monthly_challans": _execute_generate_monthly_challans,
+    "update_challan": _execute_update_challan,
+    "delete_challan": _execute_delete_challan,
+    "record_payment": _execute_record_payment,
+    "create_inventory": _execute_create_inventory,
+    "delete_inventory": _execute_delete_inventory,
+    "update_event": _execute_update_event,
+    "delete_event": _execute_delete_event,
     # Teacher
     "mark_attendance": _execute_mark_attendance,
     "upload_grades": _execute_upload_grades,

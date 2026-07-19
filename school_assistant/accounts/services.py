@@ -209,3 +209,25 @@ def delete_parent_profile_service(parent_id):
     parent.delete()
     user.delete()
     return True
+# ============================================================
+# NEW (59-tool plan)
+# ============================================================
+
+def list_users_service(role=None, status=None):
+    qs = User.objects.select_related("role").all()
+    if role:
+        qs = qs.filter(role__role_name__iexact=role)
+    if status:
+        qs = qs.filter(status__iexact=status)
+    return list(qs.values("id", "full_name", "role__role_name", "status")[:50])
+
+
+def get_user_details_service(user_name):
+    matches = User.objects.filter(full_name__icontains=user_name).select_related("role")
+    count = matches.count()
+    if count == 0:
+        return None, f"'{user_name}' naam ka koi user nahi mila."
+    if count > 1:
+        names = ", ".join(f"{u.full_name} ({u.role.role_name})" for u in matches)
+        return None, f"Multiple users '{user_name}' se match karte hain: {names}."
+    return matches.first(), None

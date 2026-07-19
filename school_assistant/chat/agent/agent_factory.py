@@ -10,6 +10,7 @@ from chat.agent.prompts import ROLE_PROMPTS
 
 
 def build_agent(user, tools, role):
+    print(f"🟢 Agent building for role: {role}")
     today = date.today().isoformat()
     system_prompt = (
         f"{ROLE_PROMPTS[role]}\n\n"

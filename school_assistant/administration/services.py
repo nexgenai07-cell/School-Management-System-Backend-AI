@@ -52,6 +52,8 @@ def resolve_ticket_service(ticket_id, remarks=None):
 
 
 def create_event_service(name, date, venue=""):
+    if SchoolEvent.objects.filter(event_name__iexact=name, event_date=date).exists():
+        raise ValueError(f"'{name}' event pehle se {date} par exist karta hai.")
     return SchoolEvent.objects.create(event_name=name, event_date=date, venue=venue)
 
 
@@ -145,4 +147,58 @@ def cancel_certificate_request_service(student_id, cert_type):
     from chat.models import CertificateRequest
     req = CertificateRequest.objects.get(student_id=student_id, cert_type=cert_type, status="Pending")
     req.delete()
+    return True
+# ============================================================
+# NEW (59-tool plan)
+# ============================================================
+
+def create_inventory_service(item_name, category, total_quantity, assigned_to_room=None):
+    return Inventory.objects.create(
+        item_name=item_name, category=category,
+        total_quantity=total_quantity, assigned_to_room=assigned_to_room,
+    )
+
+
+def delete_inventory_service(item_name, room=None):
+    qs = Inventory.objects.filter(item_name__iexact=item_name)
+    if room:
+        qs = qs.filter(assigned_to_room__iexact=room)
+    count = qs.count()
+    if count == 0:
+        raise ValueError(f"'{item_name}' inventory mein nahi mila.")
+    if count > 1:
+        rooms = ", ".join(i.assigned_to_room or "unassigned" for i in qs)
+        raise ValueError(f"'{item_name}' {count} rooms mein hai ({rooms}). Room specify karo.")
+    qs.first().delete()
+    return True
+
+
+def update_event_service(event_name, new_name=None, date=None, venue=None):
+    qs = SchoolEvent.objects.filter(event_name__iexact=event_name)
+    count = qs.count()
+    if count == 0:
+        raise ValueError(f"'{event_name}' naam ka koi event nahi mila.")
+    if count > 1:
+        dates = ", ".join(e.event_date.strftime("%Y-%m-%d %H:%M") for e in qs)
+        raise ValueError(f"'{event_name}' naam ke {count} events hain ({dates}). Konsa update karna hai, date bhi batao.")
+    event = qs.first()
+    if new_name is not None:
+        event.event_name = new_name
+    if date is not None:
+        event.event_date = date
+    if venue is not None:
+        event.venue = venue
+    event.save()
+    return event
+
+
+def delete_event_service(event_name):
+    qs = SchoolEvent.objects.filter(event_name__iexact=event_name)
+    count = qs.count()
+    if count == 0:
+        raise ValueError(f"'{event_name}' naam ka koi event nahi mila.")
+    if count > 1:
+        dates = ", ".join(e.event_date.strftime("%Y-%m-%d %H:%M") for e in qs)
+        raise ValueError(f"'{event_name}' naam ke {count} events hain ({dates}). Konsa delete karna hai, date bhi batao.")
+    qs.first().delete()
     return True
