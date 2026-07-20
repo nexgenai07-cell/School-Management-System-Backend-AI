@@ -4,8 +4,7 @@ Builds a role-specific agent: LLM (with fallback chain) + tools + system prompt.
 from datetime import date
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelFallbackMiddleware
-
-from chat.services.llm_router import primary, fallback_1, fallback_2
+from chat.services.llm_router import primary, get_fallback_chain
 from chat.agent.prompts import ROLE_PROMPTS
 
 
@@ -22,7 +21,11 @@ def build_agent(user, tools, role):
         model=primary,
         tools=tools,
         system_prompt=system_prompt,
-        middleware=[ModelFallbackMiddleware(fallback_1, fallback_2)],
+        # FIX: get_fallback_chain() returns [fallback_1, fallback_2 (NVIDIA,
+        # if configured), fallback_3 (Gemini)] -- was hardcoded to just
+        # [fallback_1, fallback_2] before, so adding/removing a provider in
+        # llm_router.py never requires touching this file again.
+        middleware=[ModelFallbackMiddleware(*get_fallback_chain())],
     )
 
 

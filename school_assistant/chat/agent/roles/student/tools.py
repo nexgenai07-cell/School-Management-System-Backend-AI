@@ -11,7 +11,8 @@ injection where a student says "show me roll number 5's data".
 """
 from langchain_core.tools import tool
 from chat.agent.permissions import check
-from chat.models import PendingAction
+from chat.agent.roles.shared.propose import make_propose
+from chat.agent.roles.shared.complaint_tool import build_file_complaint_tool
 
 from accounts.services import get_student_profile_service, update_student_profile_service
 from attendance.services import get_student_attendance_service, get_student_attendance_summary_service
@@ -43,22 +44,7 @@ def make_student_tools(user, session):
     if not check(user, "own_data", "read"):
         return {"read": [], "write": []}
 
-    def _propose(tool_name, params, summary):
-        # BUG FIX: PendingAction model has fields (tool_name, params, status) --
-        # NOT action_name/summary (those were removed in migration
-        # 0004_sync_pendingaction_schema.py). This was crashing with a
-        # TypeError on every single WRITE tool. The human-readable summary
-        # now goes inside params["_summary"], which is exactly where
-        # consumers.py's handle_pending_action() expects to find it.
-        PendingAction.objects.update_or_create(
-            session=session,
-            defaults={
-                "tool_name": tool_name,
-                "params": {**params, "_summary": summary},
-                "status": "pending",
-            },
-        )
-        return f"CONFIRM: {summary} (yes/no)"
+    _propose = make_propose(session)
 
     def _resolve_student_profile():
         """Returns the current student's profile from the closure."""
@@ -208,15 +194,7 @@ def make_student_tools(user, session):
         return _propose("request_certificate", {"student_id": student.id, "cert_type": cert_type},
                          f"{cert_type} certificate request bhejna")
 
-    @tool
-    def file_complaint(complaint_type: str, description: str, against_user_name: str = None) -> str:
-        """File a complaint. complaint_type: infrastructure, behavioral, other.
-        against_user_name: optional name of the person you're complaining about."""
-        student = _resolve_student_profile()
-        return _propose("file_complaint",
-                         {"reporter_id": user.id, "complaint_type": complaint_type,
-                          "description": description, "against_user_name": against_user_name},
-                         f"Complaint file karna: {complaint_type}")
+    file_complaint = build_file_complaint_tool(user, _propose)
 
     # ---------------- Certificate Delete (Extra) ----------------
 
